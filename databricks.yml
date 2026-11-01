@@ -1,0 +1,62 @@
+# Databricks Asset Bundle: code, the training job and the app, deployed together.
+# Free Edition has one workspace, so "dev" and "prod" are separate folders and
+# names inside it. On a paid workspace they would usually be separate workspaces.
+bundle:
+  name: shelfsense
+
+variables:
+  catalog:
+    default: workspace
+  schema:
+    default: shelfsense
+  schedule_status:
+    default: PAUSED
+
+resources:
+  jobs:
+    shelfsense_training:
+      name: shelfsense-training-${bundle.target}
+      schedule:
+        quartz_cron_expression: "0 0 2 ? * MON"   # Mondays 02:00
+        timezone_id: Asia/Kolkata
+        pause_status: ${var.schedule_status}
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}_${bundle.target}
+      tasks:
+        - task_key: ingest_validate
+          notebook_task:
+            notebook_path: ./notebooks/01_ingest_validate.py
+        - task_key: train_register
+          depends_on: [{ task_key: ingest_validate }]
+          notebook_task:
+            notebook_path: ./notebooks/02_train_register.py
+        - task_key: batch_forecast
+          depends_on: [{ task_key: train_register }]
+          notebook_task:
+            notebook_path: ./notebooks/03_batch_forecast.py
+        - task_key: monitor_drift
+          depends_on: [{ task_key: batch_forecast }]
+          notebook_task:
+            notebook_path: ./notebooks/04_monitor_drift.py
+
+  apps:
+    shelfsense_app:
+      name: shelfsense-${bundle.target}
+      description: ShelfSense 7-day CPG sales forecasting
+      source_code_path: .
+
+targets:
+  dev:
+    default: true
+    mode: development
+    variables:
+      schedule_status: PAUSED
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/prod
+    variables:
+      schedule_status: UNPAUSED

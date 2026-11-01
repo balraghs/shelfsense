@@ -1,0 +1,5 @@
+# Databricks Apps entry point. Free Edition allows up to 3 apps; each stops after 24 hours and can be restarted.
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+    value: "false"
